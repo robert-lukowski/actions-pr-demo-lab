@@ -1,0 +1,62 @@
+name: Prepare Release Paths PR
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-release-paths:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Rename fake demo paths
+        run: python .github/workflows/rename_demo_paths.py
+
+      - name: Check for schema changes
+        id: changes
+        shell: bash
+        run: |
+          if git diff --quiet -- 'tools/**/schema.yaml'; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No schema changes detected. No pull request will be created."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Schema changes detected."
+          fi
+
+      - name: Create automation branch
+        if: steps.changes.outputs.has_changes == 'true'
+        run: git switch -c "automation/release-demo-paths-${GITHUB_RUN_ID}"
+
+      - name: Commit schema changes
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- 'tools/**/schema.yaml'
+          git commit -m "Rename fake demo paths for release"
+
+      - name: Push automation branch
+        if: steps.changes.outputs.has_changes == 'true'
+        run: git push origin "automation/release-demo-paths-${GITHUB_RUN_ID}"
+
+      - name: Create pull request
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base release \
+            --head "automation/release-demo-paths-${GITHUB_RUN_ID}" \
+            --title "Rename fake demo paths for release" \
+            --body "This test pull request updates fake OpenAPI path keys from /demo-* to /release-*."
