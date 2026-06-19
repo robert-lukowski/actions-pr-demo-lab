@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: Fake schema for testing GitHub Actions pull request automation test
 servers:
-  - url: https://demo-service.example.com
+  - url: https://demo-test.example.com
 paths:
   /demo-api:
     post:
