@@ -6,7 +6,7 @@ info:
 servers:
   - url: https://demotest.example.com
 paths:
-  /release-api:
+  /demo-api:
     post:
       summary: Fake endpoint
       responses:
