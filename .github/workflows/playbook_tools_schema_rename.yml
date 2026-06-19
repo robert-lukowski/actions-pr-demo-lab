@@ -1,0 +1,60 @@
+name: Playbook Tools Schema Rename
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rename-schema-paths:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout cat
+        uses: actions/checkout@v4
+        with:
+          ref: cat
+          fetch-depth: 0
+
+      - name: Rename schema paths
+        run: python .github/workflows/playbook_tools_schema_rename_script.py
+
+      - name: Check for changes
+        id: changes
+        shell: bash
+        run: |
+          if git diff --quiet -- ':(glob)tools/**/schema.yaml'; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No schema changes detected. No pull request will be created."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request branch
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          BRANCH_NAME="automation/prod-playbook-tool-paths-${GITHUB_RUN_ID}"
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> "$GITHUB_ENV"
+          git switch -c "$BRANCH_NAME"
+
+      - name: Commit schema changes
+        if: steps.changes.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- ':(glob)tools/**/schema.yaml'
+          git commit -m "Rename playbook tool schema paths"
+
+      - name: Push pull request branch
+        if: steps.changes.outputs.has_changes == 'true'
+        run: git push origin "$BRANCH_NAME"
+
+      - name: Create pull request
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr create --base prod --head "$BRANCH_NAME" --title "Rename playbook tool schema paths" --body "Updates schema path keys from nprod to prod."
